@@ -1,0 +1,283 @@
+# Super_Well_Chess.pyw
+import pygame as pg
+
+# 游戏状态
+turn: int = 0
+red: list[int] = []
+blue: list[int] = []
+r_score: int = 0
+b_score: int = 0
+last_pos: int = -1
+
+# 棋盘布局
+GAP: int = 20
+CELL: int = 50
+BLOCK_SIZE: int = CELL * 3
+TOP: int = 120
+WIDTH: int = GAP * 2 + BLOCK_SIZE * 3 + CELL * 2
+HEIGHT: int = TOP + GAP * 2 + BLOCK_SIZE * 3 + CELL * 2
+
+blocks: list[list[int]] = [
+    [GAP,                               TOP + GAP,                              0],
+    [BLOCK_SIZE + GAP + CELL,           TOP + GAP,                              9],
+    [BLOCK_SIZE * 2 + GAP + CELL * 2,   TOP + GAP,                              18],
+    [GAP,                               TOP + BLOCK_SIZE + GAP + CELL,          27],
+    [BLOCK_SIZE + GAP + CELL,           TOP + BLOCK_SIZE + GAP + CELL,          36],
+    [BLOCK_SIZE * 2 + GAP + CELL * 2,   TOP + BLOCK_SIZE + GAP + CELL,          45],
+    [GAP,                               TOP + BLOCK_SIZE * 2 + GAP + CELL * 2,  54],
+    [BLOCK_SIZE + GAP + CELL,           TOP + BLOCK_SIZE * 2 + GAP + CELL * 2,  63],
+    [BLOCK_SIZE * 2 + GAP + CELL * 2,   TOP + BLOCK_SIZE * 2 + GAP + CELL * 2,  72]
+]
+
+# 颜色
+WHITE: pg.Color = pg.Color(255, 255, 255)
+GREEN: pg.Color = pg.Color(0, 220, 80)
+BLUE: pg.Color = pg.Color(0, 100, 255)
+RED: pg.Color = pg.Color(255, 0, 0)
+BLACK: pg.Color = pg.Color(0, 0, 0)
+
+
+def getlines(base: int) -> list[tuple[int, int, int]]:
+    """
+    获取一个小九宫格内所有8条连线
+    :param base: 小九宫格起始编号
+    :return: 所有连线三元组
+    :rtype: list[tuple[int, int, int]]
+    """
+    return [
+        (base + 0, base + 1, base + 2), (base + 3, base + 4, base + 5), (base + 6, base + 7, base + 8),
+        (base + 0, base + 3, base + 6), (base + 1, base + 4, base + 7), (base + 2, base + 5, base + 8),
+        (base + 0, base + 4, base + 8), (base + 2, base + 4, base + 6)
+    ]
+
+
+def get_line_coords(bid: int, line_idx: int) -> tuple[tuple[int, int], tuple[int, int]]:
+    """
+    获取指定小棋盘与连线的屏幕坐标
+    :param bid: 小棋盘编号
+    :param line_idx: 连线索引(0-7)
+    :return: 连线的起止坐标
+    :rtype: tuple[tuple[int, int], tuple[int, int]]
+    """
+    x0, y0, _ = blocks[bid]
+    x1 = x0 + BLOCK_SIZE
+    y1 = y0 + BLOCK_SIZE
+    lines = [
+        ((x0, y0 + 25), (x1, y0 + 25)),
+        ((x0, y0 + 75), (x1, y0 + 75)),
+        ((x0, y0 + 125), (x1, y0 + 125)),
+        ((x0 + 25, y0), (x0 + 25, y1)),
+        ((x0 + 75, y0), (x0 + 75, y1)),
+        ((x0 + 125, y0), (x0 + 125, y1)),
+        ((x0, y0), (x1, y1)),
+        ((x1, y0), (x0, y1))
+    ]
+    return lines[line_idx]
+
+
+def is_block_full(bid: int) -> bool:
+    """
+    判断指定小棋盘是否已下满9子
+    :param bid: 小棋盘编号
+    :return: 已满返回True，否则False
+    :rtype: bool
+    """
+    cnt = 0
+    for p in red + blue:
+        if p // 9 == bid:
+            cnt += 1
+    return cnt >= 9
+
+
+def get_allowed_block() -> int:
+    """
+    获取当前允许落子的小棋盘
+    :return: 允许落子的棋盘编号，-1表示可任意落子
+    :rtype: int
+    """
+    global last_pos
+    if last_pos == -1:
+        return -1
+    target = last_pos % 9
+    if is_block_full(target):
+        return -1
+    return target
+
+
+def is_legal(pos: int) -> bool:
+    """
+    判断某位置是否可以落子
+    :param pos: 全局落子位置
+    :return: 合法返回True，否则False
+    :rtype: bool
+    """
+    b = get_allowed_block()
+    if b == -1:
+        return True
+    return pos // 9 == b
+
+
+def draw_board(screen: pg.surface.Surface) -> None:
+    """
+    绘制整个九宫棋盘的网格线
+    :param screen: 游戏显示窗口
+    :return: 无返回值
+    :rtype: None
+    """
+    for x, y, _ in blocks:
+        for i in range(4):
+            pg.draw.line(screen, WHITE, (x, y + i * CELL),
+                         (x + BLOCK_SIZE, y + i * CELL), 1)
+            pg.draw.line(screen, WHITE, (x + i * CELL, y),
+                         (x + i * CELL, y + BLOCK_SIZE), 1)
+
+
+def draw_all_pieces(screen: pg.surface.Surface) -> None:
+    """
+    绘制所有红蓝棋子与胜利连线
+    :param screen: 游戏显示窗口
+    :return: 无返回值
+    :rtype: None
+    """
+    for pos in red:
+        bix, biy, _ = blocks[pos // 9]
+        px = bix + (pos % 3) * CELL + 25
+        py = biy + (pos // 3 % 3) * CELL + 25
+        pg.draw.circle(screen, RED, (px, py), 15, 2)
+
+    for pos in blue:
+        bix, biy, _ = blocks[pos // 9]
+        px = bix + (pos % 3) * CELL + 25
+        py = biy + (pos // 3 % 3) * CELL + 25
+        pg.draw.circle(screen, BLUE, (px, py), 15, 2)
+
+    for bid in range(9):
+        for line_idx in range(8):
+            base = bid * 9
+            a, b, c = getlines(base)[line_idx]
+            if a in red and b in red and c in red:
+                line = get_line_coords(bid, line_idx)
+                pg.draw.line(screen, RED, line[0], line[1], 3)
+            if a in blue and b in blue and c in blue:
+                line = get_line_coords(bid, line_idx)
+                pg.draw.line(screen, BLUE, line[0], line[1], 3)
+
+
+def check_score() -> None:
+    """
+    遍历所有小棋盘，重新统计双方得分
+    :return: 无返回值
+    :rtype: None
+    """
+    global r_score, b_score
+    r_score = 0
+    b_score = 0
+    for bid in range(9):
+        base = bid * 9
+        for a, b, c in getlines(base):
+            if a in red and b in red and c in red:
+                r_score += 1
+            if a in blue and b in blue and c in blue:
+                b_score += 1
+
+
+def draw_allowed_border(screen: pg.surface.Surface) -> None:
+    """
+    绘制当前允许落子区域的绿色提示框
+    :param screen: 游戏显示窗口
+    :return: 无返回值
+    :rtype: None
+    """
+    bid = get_allowed_block()
+    if bid == -1:
+        return
+    x, y, _ = blocks[bid]
+    pg.draw.rect(screen, GREEN, (x - 2, y - 2, BLOCK_SIZE + 4, BLOCK_SIZE + 4), 3)
+
+
+def handle_click(mx: int, my: int) -> None:
+    """
+    处理鼠标点击落子的完整逻辑
+    :param mx: 鼠标点击x坐标
+    :param my: 鼠标点击y坐标
+    :return: 无返回值
+    :rtype: None
+    """
+    global turn, red, blue, last_pos
+    if my < TOP:
+        return
+    pos = -1
+    for (bx, by, bid) in blocks:
+        if bx <= mx < bx + BLOCK_SIZE and by <= my < by + BLOCK_SIZE:
+            dx = (mx - bx) // CELL
+            dy = (my - by) // CELL
+            pos = bid + dy * 3 + dx
+            break
+    if pos != -1 and pos not in red and pos not in blue and is_legal(pos):
+        bid = pos // 9
+        if not is_block_full(bid):
+            if turn == 0:
+                red.append(pos)
+            else:
+                blue.append(pos)
+            last_pos = pos
+            check_score()
+            turn = 1 - turn
+
+
+def main() -> None:
+    """
+    游戏主函数：初始化、主循环、事件处理、画面刷新
+    :return: 无返回值
+    :rtype: None
+    """
+    global turn, red, blue, last_pos
+    pg.init()
+    screen = pg.display.set_mode((WIDTH, HEIGHT))
+    font = pg.font.SysFont('MicrosoftYaHei', 40)
+    clk = pg.time.Clock()
+
+    while True:
+        screen.fill(BLACK)
+        draw_board(screen)
+        draw_all_pieces(screen)
+
+        for e in pg.event.get():
+            if e.type == pg.QUIT:
+                pg.quit()
+                return
+            if e.type == pg.MOUSEBUTTONDOWN:
+                mx, my = e.pos
+                handle_click(mx, my)
+
+        draw_allowed_border(screen)
+
+        # 分数显示
+        screen.blit(font.render(f'红: {r_score}', True, RED), (20, 10))
+        screen.blit(font.render(f'蓝: {b_score}', True, BLUE), (20, 60))
+
+        # 回合提示
+        if turn == 0:
+            t1 = font.render("红方", True, RED)
+            t2 = font.render("执子", True, RED)
+        else:
+            t1 = font.render("蓝方", True, BLUE)
+            t2 = font.render("执子", True, BLUE)
+        screen.blit(t1, (WIDTH - 120, 10))
+        screen.blit(t2, (WIDTH - 120, 60))
+
+        # 游戏结束
+        if len(red) + len(blue) >= 81:
+            txt = font.render('平局', True, WHITE)
+            if r_score > b_score:
+                txt = font.render('红胜', True, RED)
+            elif b_score > r_score:
+                txt = font.render('蓝胜', True, BLUE)
+            screen.blit(txt, (300, 60))
+
+        pg.display.update()
+        clk.tick(60)
+
+
+if __name__ == '__main__':
+    main()
