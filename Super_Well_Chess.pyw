@@ -10,23 +10,25 @@ b_score: int = 0
 last_pos: int = -1
 
 # 棋盘布局
-GAP: int = 20
+GAP: int = 30
+BLOCK_GAP: int = 40
+TOP_GAP: int = GAP
 CELL: int = 50
 BLOCK_SIZE: int = CELL * 3
-TOP: int = 120
-WIDTH: int = GAP * 2 + BLOCK_SIZE * 3 + CELL * 2
-HEIGHT: int = TOP + GAP * 2 + BLOCK_SIZE * 3 + CELL * 2
+TOP: int = TOP_GAP + 80
+WIDTH: int = GAP * 2 + BLOCK_SIZE * 3 + BLOCK_GAP * 2
+HEIGHT: int = TOP + GAP * 2 + BLOCK_SIZE * 3 + BLOCK_GAP * 2
 
 blocks: list[list[int]] = [
-    [GAP,                               TOP + GAP,                              0],
-    [BLOCK_SIZE + GAP + CELL,           TOP + GAP,                              9],
-    [BLOCK_SIZE * 2 + GAP + CELL * 2,   TOP + GAP,                              18],
-    [GAP,                               TOP + BLOCK_SIZE + GAP + CELL,          27],
-    [BLOCK_SIZE + GAP + CELL,           TOP + BLOCK_SIZE + GAP + CELL,          36],
-    [BLOCK_SIZE * 2 + GAP + CELL * 2,   TOP + BLOCK_SIZE + GAP + CELL,          45],
-    [GAP,                               TOP + BLOCK_SIZE * 2 + GAP + CELL * 2,  54],
-    [BLOCK_SIZE + GAP + CELL,           TOP + BLOCK_SIZE * 2 + GAP + CELL * 2,  63],
-    [BLOCK_SIZE * 2 + GAP + CELL * 2,   TOP + BLOCK_SIZE * 2 + GAP + CELL * 2,  72]
+    [GAP,                                       TOP + GAP,                                      0],
+    [BLOCK_SIZE + GAP + BLOCK_GAP,              TOP + GAP,                                      9],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,      TOP + GAP,                                      18],
+    [GAP,                                       TOP + BLOCK_SIZE + GAP + BLOCK_GAP,             27],
+    [BLOCK_SIZE + GAP + BLOCK_GAP,              TOP + BLOCK_SIZE + GAP + BLOCK_GAP,             36],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,      TOP + BLOCK_SIZE + GAP + BLOCK_GAP,             45],
+    [GAP,                                       TOP + BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,     54],
+    [BLOCK_SIZE + GAP + BLOCK_GAP,              TOP + BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,     63],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,      TOP + BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,     72]
 ]
 
 # 颜色
@@ -232,9 +234,11 @@ def main() -> None:
     :rtype: None
     """
     global turn, red, blue, last_pos
+    print('Super Well Chess')
     pg.init()
+    pg.display.set_caption('Super Well Chess')
     screen = pg.display.set_mode((WIDTH, HEIGHT))
-    font = pg.font.SysFont('MicrosoftYaHei', 40)
+    font = pg.font.SysFont('DengXian', 40)
     clk = pg.time.Clock()
 
     while True:
@@ -253,8 +257,8 @@ def main() -> None:
         draw_allowed_border(screen)
 
         # 分数显示
-        screen.blit(font.render(f'红: {r_score}', True, RED), (20, 10))
-        screen.blit(font.render(f'蓝: {b_score}', True, BLUE), (20, 60))
+        screen.blit(font.render(f'红: {r_score}', True, RED), (GAP, TOP_GAP))
+        screen.blit(font.render(f'蓝: {b_score}', True, BLUE), (GAP, TOP_GAP + 40))
 
         # 回合提示
         if turn == 0:
@@ -263,8 +267,8 @@ def main() -> None:
         else:
             t1 = font.render("蓝方", True, BLUE)
             t2 = font.render("执子", True, BLUE)
-        screen.blit(t1, (WIDTH - 120, 10))
-        screen.blit(t2, (WIDTH - 120, 60))
+        screen.blit(t1, (WIDTH - GAP - 80, TOP_GAP))
+        screen.blit(t2, (WIDTH - GAP - 80, TOP_GAP + 40))
 
         # 游戏结束
         if len(red) + len(blue) >= 81:
@@ -273,7 +277,7 @@ def main() -> None:
                 txt = font.render('红胜', True, RED)
             elif b_score > r_score:
                 txt = font.render('蓝胜', True, BLUE)
-            screen.blit(txt, (300, 60))
+            screen.blit(txt, (WIDTH / 2 - 40, TOP_GAP + 20))
 
         pg.display.update()
         clk.tick(60)
