@@ -29,7 +29,7 @@ def main() -> None:
 
         draw_special_border(screen)
         display_turn_tip(screen, font)
-        handle_end(screen, font)
+        display_end(screen, font)
 
         pg.display.update()
         clk.tick(60)

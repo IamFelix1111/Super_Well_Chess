@@ -5,10 +5,13 @@ import pygame as pg
 turn: int = 0
 red: list[int] = []
 blue: list[int] = []
+red_last: list[int] = []
+blue_last: list[int] = []
 r_score: int = 0
 b_score: int = 0
 last_pos: int = -1
 game_over: bool = False
+at_last: bool = False
 
 # 棋盘布局
 GAP: int = 30
@@ -19,16 +22,16 @@ WIDTH: int = GAP * 2 + BLOCK_SIZE * 3 + BLOCK_GAP * 2
 HEIGHT: int = GAP * 2 + BLOCK_SIZE * 4 + BLOCK_GAP * 3
 
 blocks: list[list[int]] = [
-    [GAP, BLOCK_SIZE + GAP + BLOCK_GAP, 0],
-    [BLOCK_SIZE + GAP + BLOCK_GAP, BLOCK_SIZE + GAP + BLOCK_GAP, 9],
-    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, BLOCK_SIZE + GAP + BLOCK_GAP, 18],
-    [GAP, BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, 27],
-    [BLOCK_SIZE + GAP + BLOCK_GAP, BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, 36],
-    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, 45],
-    [GAP, BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3, 54],
-    [BLOCK_SIZE + GAP + BLOCK_GAP, BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3, 63],
-    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3, 72],
-    [WIDTH // 2 - BLOCK_SIZE // 2, GAP, -9]
+    [GAP,                                   BLOCK_SIZE + GAP + BLOCK_GAP,           0],
+    [BLOCK_SIZE + GAP + BLOCK_GAP,          BLOCK_SIZE + GAP + BLOCK_GAP,           9],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,  BLOCK_SIZE + GAP + BLOCK_GAP,           18],
+    [GAP,                                   BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,   27],
+    [BLOCK_SIZE + GAP + BLOCK_GAP,          BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,   36],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,  BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,   45],
+    [GAP,                                   BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3,   54],
+    [BLOCK_SIZE + GAP + BLOCK_GAP,          BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3,   63],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,  BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3,   72],
+    [WIDTH // 2 - BLOCK_SIZE // 2,          GAP,                                    81]
 ]
 
 # 颜色
@@ -98,7 +101,8 @@ def get_allowed_block() -> int:
     :return: 允许落子的棋盘编号，-1表示可任意落子
     :rtype: int
     """
-    global last_pos
+    if at_last:
+        return 9
     if last_pos == -1:
         return -1
     target = last_pos % 9
@@ -115,6 +119,10 @@ def is_legal(pos: int) -> bool:
     :rtype: bool
     """
     b = get_allowed_block()
+    if game_over:
+        return False
+    if pos // 9 == 9 and not at_last:
+        return False
     if b == -1:
         return True
     return pos // 9 == b
@@ -142,26 +150,26 @@ def draw_all_pieces(screen: pg.surface.Surface) -> None:
     :return: 无返回值
     :rtype: None
     """
-    for pos in red:
+    for pos in red + red_last:
         bix, biy, _ = blocks[pos // 9]
         px = bix + (pos % 3) * CELL + 25
         py = biy + (pos // 3 % 3) * CELL + 25
         pg.draw.circle(screen, RED, (px, py), 15, 2)
 
-    for pos in blue:
+    for pos in blue + blue_last:
         bix, biy, _ = blocks[pos // 9]
         px = bix + (pos % 3) * CELL + 25
         py = biy + (pos // 3 % 3) * CELL + 25
         pg.draw.circle(screen, BLUE, (px, py), 15, 2)
 
-    for bid in range(9):
+    for bid in range(10):
         for line_idx in range(6):
             base = bid * 9
             a, b, c = getlines(base)[line_idx]
-            if a in red and b in red and c in red:
+            if a in red + red_last and b in red + red_last and c in red + red_last:
                 line = get_line_coords(bid, line_idx)
                 pg.draw.line(screen, RED, line[0], line[1], 3)
-            if a in blue and b in blue and c in blue:
+            if a in blue + blue_last and b in blue + blue_last and c in blue + blue_last:
                 line = get_line_coords(bid, line_idx)
                 pg.draw.line(screen, BLUE, line[0], line[1], 3)
 
@@ -175,12 +183,12 @@ def check_score() -> None:
     global r_score, b_score
     r_score = 0
     b_score = 0
-    for bid in range(9):
+    for bid in range(10):
         base = bid * 9
         for a, b, c in getlines(base):
-            if a in red and b in red and c in red:
+            if a in red + red_last and b in red + red_last and c in red + red_last:
                 r_score += 1
-            if a in blue and b in blue and c in blue:
+            if a in blue + blue_last and b in blue + blue_last and c in blue + blue_last:
                 b_score += 1
 
 
@@ -206,6 +214,22 @@ def is_advantage_block(bid: int) -> tuple[bool, bool]:
     return red_adv, blue_adv
 
 
+def handle_advantage_blocks() -> None:
+    """
+    处理优势宫格
+    :return: 无返回值
+    :rtype: None
+    """
+    for bid in range(10):
+        r_adv, b_adv = is_advantage_block(bid)
+        if not is_block_full(bid):
+            continue
+        if r_adv and 81 + bid not in red_last:
+            red_last.append(81 + bid)
+        elif b_adv and 81 + bid not in blue_last:
+            blue_last.append(81 + bid)
+
+
 def draw_special_border(screen: pg.surface.Surface) -> None:
     """
     绘制当前允许落子区域的绿色提示框
@@ -213,7 +237,7 @@ def draw_special_border(screen: pg.surface.Surface) -> None:
     :return: 无返回值
     :rtype: None
     """
-    for bid in range(9):
+    for bid in range(10):
         r_adv, b_adv = is_advantage_block(bid)
         x, y, _ = blocks[bid]
         if r_adv:
@@ -250,7 +274,10 @@ def handle_click(mx: int, my: int) -> None:
             else:
                 blue.append(pos)
             last_pos = pos
+            handle_advantage_blocks()
             check_score()
+            handle_last()
+            handle_end()
             turn = 1 - turn
 
 
@@ -266,7 +293,7 @@ def display_turn_tip(screen: pg.surface.Surface, font: pg.font.Font) -> None:
                 (GAP + BLOCK_SIZE / 2 - 40, GAP + BLOCK_SIZE / 2 - 40))
     screen.blit(font.render(f'蓝: {b_score}', True, BLUE),
                 (GAP + BLOCK_SIZE / 2 - 40, GAP + BLOCK_SIZE / 2))
-    if game_over:
+    if not game_over:
         if turn == 0:
             t1 = font.render("红方", True, RED)
             t2 = font.render("执子", True, RED)
@@ -277,17 +304,40 @@ def display_turn_tip(screen: pg.surface.Surface, font: pg.font.Font) -> None:
         screen.blit(t2, (WIDTH - GAP - BLOCK_SIZE / 2 - 40, GAP + BLOCK_SIZE / 2))
 
 
-def handle_end(screen: pg.surface.Surface, font: pg.font.Font) -> None:
+def handle_last() -> None:
     """
-    判断结束并显示
+    判断最后并显示
+    :return: 无返回值
+    :rtype: None
+    """
+    global at_last, red, blue
+    if len(red) + len(blue) >= 81 and not at_last:
+        at_last = True
+        red += red_last
+        blue += blue_last
+        check_score()
+
+
+def handle_end() -> None:
+    """
+    判断结束
+    :return: 无返回值
+    :rtype: None
+    """
+    global game_over
+    if len(red) + len(blue) >= 90 and not game_over:
+        game_over = True
+
+
+def display_end(screen: pg.surface.Surface, font: pg.font.Font) -> None:
+    """
+    显示结束
     :param screen: 游戏显示窗口
     :param font: 字体
     :return: 无返回值
     :rtype: None
     """
-    global game_over
-    if len(red) + len(blue) >= 81:
-        game_over = True
+    if game_over:
         txt = font.render('平局', True, WHITE)
         if r_score > b_score:
             txt = font.render('红胜', True, RED)
