@@ -1,5 +1,5 @@
-# Super_Well_Chess.pyw
-# 双人 单机器
+# Super_Well_Chess_Single.pyw
+# 单人 单机器
 from superwellchess import *
 
 def main() -> None:
