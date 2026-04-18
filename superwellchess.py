@@ -1,4 +1,6 @@
 # superwellchess.py
+from typing import Callable
+
 import pygame as pg
 
 # 游戏状态
@@ -22,16 +24,16 @@ WIDTH: int = GAP * 2 + BLOCK_SIZE * 3 + BLOCK_GAP * 2
 HEIGHT: int = GAP * 2 + BLOCK_SIZE * 4 + BLOCK_GAP * 3
 
 blocks: list[list[int]] = [
-    [GAP,                                   BLOCK_SIZE + GAP + BLOCK_GAP,           0],
-    [BLOCK_SIZE + GAP + BLOCK_GAP,          BLOCK_SIZE + GAP + BLOCK_GAP,           9],
-    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,  BLOCK_SIZE + GAP + BLOCK_GAP,           18],
-    [GAP,                                   BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,   27],
-    [BLOCK_SIZE + GAP + BLOCK_GAP,          BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,   36],
-    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,  BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,   45],
-    [GAP,                                   BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3,   54],
-    [BLOCK_SIZE + GAP + BLOCK_GAP,          BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3,   63],
-    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2,  BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3,   72],
-    [WIDTH // 2 - BLOCK_SIZE // 2,          GAP,                                    81]
+    [GAP, BLOCK_SIZE + GAP + BLOCK_GAP, 0],
+    [BLOCK_SIZE + GAP + BLOCK_GAP, BLOCK_SIZE + GAP + BLOCK_GAP, 9],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, BLOCK_SIZE + GAP + BLOCK_GAP, 18],
+    [GAP, BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, 27],
+    [BLOCK_SIZE + GAP + BLOCK_GAP, BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, 36],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, 45],
+    [GAP, BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3, 54],
+    [BLOCK_SIZE + GAP + BLOCK_GAP, BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3, 63],
+    [BLOCK_SIZE * 2 + GAP + BLOCK_GAP * 2, BLOCK_SIZE * 3 + GAP + BLOCK_GAP * 3, 72],
+    [WIDTH // 2 - BLOCK_SIZE // 2, GAP, 81]
 ]
 
 # 颜色
@@ -40,6 +42,13 @@ GREEN: pg.Color = pg.Color(0, 220, 80)
 BLUE: pg.Color = pg.Color(0, 100, 255)
 RED: pg.Color = pg.Color(255, 0, 0)
 BLACK: pg.Color = pg.Color(0, 0, 0)
+
+send_click_to_server: Callable[[int], None] = lambda _: None
+
+
+def set_send_click_to_server(func: Callable[[int], None]):
+    global send_click_to_server
+    send_click_to_server = func
 
 
 def getlines(base: int) -> list[tuple[int, int, int]]:
@@ -220,14 +229,21 @@ def handle_advantage_blocks() -> None:
     :return: 无返回值
     :rtype: None
     """
+    global r_score, b_score
     for bid in range(10):
         r_adv, b_adv = is_advantage_block(bid)
         if not is_block_full(bid):
             continue
         if r_adv and 81 + bid not in red_last:
-            red_last.append(81 + bid)
+            if bid == 9:
+                r_score += 1
+            else:
+                red_last.append(81 + bid)
         elif b_adv and 81 + bid not in blue_last:
-            blue_last.append(81 + bid)
+            if bid == 9:
+                b_score += 1
+            else:
+                blue_last.append(81 + bid)
 
 
 def draw_special_border(screen: pg.surface.Surface) -> None:
@@ -250,15 +266,15 @@ def draw_special_border(screen: pg.surface.Surface) -> None:
         pg.draw.rect(screen, GREEN, (x - 2, y - 2, BLOCK_SIZE + 4, BLOCK_SIZE + 4), 3)
 
 
-def handle_click(mx: int, my: int) -> None:
+def handle_click_client(mx: int, my: int) -> None:
     """
-    处理鼠标点击落子的完整逻辑
+    处理鼠标点击落子
     :param mx: 鼠标点击x坐标
     :param my: 鼠标点击y坐标
     :return: 无返回值
     :rtype: None
     """
-    global turn, red, blue, last_pos
+    global turn, last_pos
     pos = -1
     for (bx, by, bid) in blocks:
         if bx <= mx < bx + BLOCK_SIZE and by <= my < by + BLOCK_SIZE:
@@ -267,6 +283,18 @@ def handle_click(mx: int, my: int) -> None:
             pos = bid + dy * 3 + dx
             break
     if pos != -1 and pos not in red and pos not in blue and is_legal(pos):
+        send_click_to_server(pos)
+
+
+def handle_click_server(pos: int) -> None:
+    """
+    处理鼠标点击落子
+    :param pos: 落子位置
+    :return: 无返回值
+    :rtype: None
+    """
+    global turn, last_pos
+    if pos != -1 and pos not in red and pos not in blue and is_legal(pos):
         bid = pos // 9
         if not is_block_full(bid):
             if turn == 0:
@@ -274,11 +302,9 @@ def handle_click(mx: int, my: int) -> None:
             else:
                 blue.append(pos)
             last_pos = pos
-            handle_advantage_blocks()
-            check_score()
-            handle_last()
-            handle_end()
-            turn = 1 - turn
+            process()
+            turn += 1
+            turn %= 2
 
 
 def display_turn_tip(screen: pg.surface.Surface, font: pg.font.Font) -> None:
@@ -329,6 +355,13 @@ def handle_end() -> None:
         game_over = True
 
 
+def process() -> None:
+    handle_advantage_blocks()
+    check_score()
+    handle_last()
+    handle_end()
+
+
 def display_end(screen: pg.surface.Surface, font: pg.font.Font) -> None:
     """
     显示结束
@@ -344,3 +377,19 @@ def display_end(screen: pg.surface.Surface, font: pg.font.Font) -> None:
         elif b_score > r_score:
             txt = font.render('蓝胜', True, BLUE)
         screen.blit(txt, (WIDTH - GAP - BLOCK_SIZE / 2 - 40, GAP + BLOCK_SIZE / 2 - 20))
+
+
+def render(screen: pg.surface.Surface, font: pg.font.Font) -> None:
+    """
+    渲染界面
+    :param screen: 游戏显示窗口
+    :param font: 字体
+    :return: 无返回值
+    :rtype: None
+    """
+    screen.fill(BLACK)
+    draw_board(screen)
+    draw_all_pieces(screen)
+    draw_special_border(screen)
+    display_turn_tip(screen, font)
+    display_end(screen, font)
