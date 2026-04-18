@@ -192,6 +192,7 @@ def check_score() -> None:
     global r_score, b_score
     r_score = 0
     b_score = 0
+    handle_advantage_blocks()
     for bid in range(10):
         base = bid * 9
         for a, b, c in getlines(base):
@@ -356,7 +357,6 @@ def handle_end() -> None:
 
 
 def process() -> None:
-    handle_advantage_blocks()
     check_score()
     handle_last()
     handle_end()
